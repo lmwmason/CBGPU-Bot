@@ -1,45 +1,52 @@
-use serenity::async_trait;
-use serenity::model::channel::Message;
-use serenity::model::gateway::Ready;
-use serenity::prelude::*;
+mod commands;
+mod models;
+mod state;
+mod storage;
+
+use poise::serenity_prelude as serenity;
+use state::Data;
 use std::env;
-
-struct Handler;
-
-#[async_trait]
-impl EventHandler for Handler {
-    async fn message(&self, ctx: Context, msg: Message) {
-        if msg.author.bot {
-            return;
-        }
-        if msg.content == "!ping" {
-            let _ = msg.channel_id.say(&ctx.http, "Pong!").await;
-        }
-    }
-
-    async fn ready(&self, _: Context, ready: Ready) {
-        println!("{} connected!", ready.user.name);
-    }
-}
+use std::sync::Arc;
+use storage::Store;
+use tokio::sync::Mutex;
 
 #[tokio::main]
 async fn main() {
-    let token = env::var("DISCORD_TOKEN").expect("DISCORD_TOKEN is required.");
-    let intents = GatewayIntents::GUILD_MESSAGES
-        | GatewayIntents::DIRECT_MESSAGES
-        | GatewayIntents::MESSAGE_CONTENT;
+    dotenvy::dotenv().ok();
+    let token = env::var("DISCORD_TOKEN").expect("DISCORD_TOKEN is not set.");
+    let intents = serenity::GatewayIntents::non_privileged();
 
-    let mut client = Client::builder(&token, intents)
-        .event_handler(Handler)
+    let framework = poise::Framework::builder()
+        .options(poise::FrameworkOptions {
+            commands: vec![
+                commands::general::info(),
+                commands::general::add(),
+            ],
+            ..Default::default()
+        })
+        .setup(|ctx, _ready, framework| {
+            Box::pin(async move {
+                let guild_id = serenity::GuildId::new(1575070127102230622);
+                poise::builtins::register_in_guild(
+                    ctx,
+                    &framework.options().commands,
+                    guild_id,
+                )
+                .await?;
+                println!("Bot is ready.");
+
+                let storage = Arc::new(Mutex::new(Store::load()?));
+                Ok(Data { storage })
+            })
+        })
+        .build();
+
+    let mut client = serenity::ClientBuilder::new(token, intents)
+        .framework(framework)
         .await
-        .expect("Failed to create Discord client.");
+        .expect("Failed to create the Discord client.");
 
-    if let Err(why) = client.start().await {
-        let detail = format!("{why:?}");
-        eprintln!("Client error: {detail}");
-        if detail.contains("DisallowedGatewayIntents") {
-            eprintln!("Open your application's Bot settings in the Discord Developer Portal.");
-            eprintln!("Enable and save Message Content Intent under Privileged Gateway Intents, then restart the bot.");
-        }
+    if let Err(error) = client.start().await {
+        eprintln!("Client error: {error:?}");
     }
 }
