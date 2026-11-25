@@ -1,5 +1,6 @@
 mod ai;
 mod commands;
+mod kb;
 mod models;
 mod state;
 mod storage;
@@ -49,6 +50,10 @@ async fn main() {
                 commands::ai::clear(),
                 commands::ai::ai_usage(),
                 commands::ai::ai_config(),
+                commands::cbgpu::cbgpu(),
+                commands::cbgpu::features(),
+                commands::cbgpu::schools(),
+                commands::cbgpu::links(),
             ],
             ..Default::default()
         })
