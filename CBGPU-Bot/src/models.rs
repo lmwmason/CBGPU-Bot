@@ -54,55 +54,6 @@ impl Ambassador {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub enum ApplicationStatus {
-    Pending,
-    Approved,
-    Rejected,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Application {
-    pub id: EntityId,
-    pub discord_id: u64,
-    pub name: String,
-    pub school: String,
-    pub grade: Option<String>,
-    pub introduction: String,
-    pub reason: String,
-    pub status: ApplicationStatus,
-    pub created_at: chrono::DateTime<Utc>,
-    pub reviewed_at: Option<chrono::DateTime<Utc>>,
-    pub reviewed_by: Option<u64>,
-    pub review_reason: Option<String>,
-}
-
-impl Application {
-    pub fn new(
-        discord_id: u64,
-        name: String,
-        school: String,
-        grade: Option<String>,
-        introduction: String,
-        reason: String,
-    ) -> Self {
-        Self {
-            id: Uuid::new_v4(),
-            discord_id,
-            name,
-            school,
-            grade,
-            introduction,
-            reason,
-            status: ApplicationStatus::Pending,
-            created_at: Utc::now(),
-            reviewed_at: None,
-            reviewed_by: None,
-            review_reason: None,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum MissionStatus {
     Active,
     Completed,
@@ -124,6 +75,7 @@ pub struct Mission {
     pub created_at: chrono::DateTime<Utc>,
 }
 
+#[allow(clippy::too_many_arguments)]
 impl Mission {
     pub fn new(
         title: String,
@@ -229,173 +181,6 @@ impl ActivityRecord {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub enum CollabStatus {
-    Open,
-    Closed,
-    Completed,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Collaboration {
-    pub id: EntityId,
-    pub title: String,
-    pub description: String,
-    pub required_skills: String,
-    pub looking_for: String,
-    pub participating_schools: Vec<String>,
-    pub contact: String,
-    pub status: CollabStatus,
-    pub created_by: u64,
-    pub created_at: chrono::DateTime<Utc>,
-    pub members: Vec<u64>,
-}
-
-impl Collaboration {
-    pub fn new(
-        title: String,
-        description: String,
-        required_skills: String,
-        looking_for: String,
-        participating_schools: Vec<String>,
-        contact: String,
-        created_by: u64,
-    ) -> Self {
-        Self {
-            id: Uuid::new_v4(),
-            title,
-            description,
-            required_skills,
-            looking_for,
-            participating_schools,
-            contact,
-            status: CollabStatus::Open,
-            created_by,
-            created_at: Utc::now(),
-            members: vec![created_by],
-        }
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub enum CollabRequestStatus {
-    Pending,
-    Accepted,
-    Rejected,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CollabRequest {
-    pub id: EntityId,
-    pub collab_id: EntityId,
-    pub discord_id: u64,
-    pub status: CollabRequestStatus,
-    pub created_at: chrono::DateTime<Utc>,
-    pub responded_at: Option<chrono::DateTime<Utc>>,
-    pub responded_by: Option<u64>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub enum ConnectionStatus {
-    Pending,
-    Accepted,
-    Rejected,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Connection {
-    pub id: EntityId,
-    pub requester_id: u64,
-    pub target_id: u64,
-    pub status: ConnectionStatus,
-    pub created_at: chrono::DateTime<Utc>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub enum EventStatus {
-    Upcoming,
-    Completed,
-    Cancelled,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Event {
-    pub id: EntityId,
-    pub title: String,
-    pub description: String,
-    pub event_date: chrono::DateTime<Utc>,
-    pub location: String,
-    pub status: EventStatus,
-    pub created_by: u64,
-    pub created_at: chrono::DateTime<Utc>,
-    pub rsvps: Vec<u64>,
-}
-
-impl Event {
-    pub fn new(
-        title: String,
-        description: String,
-        event_date: chrono::DateTime<Utc>,
-        location: String,
-        created_by: u64,
-    ) -> Self {
-        Self {
-            id: Uuid::new_v4(),
-            title,
-            description,
-            event_date,
-            location,
-            status: EventStatus::Upcoming,
-            created_by,
-            created_at: Utc::now(),
-            rsvps: Vec::new(),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub enum TicketCategory {
-    SchoolOnboarding,
-    PromotionalMaterials,
-    CbgpuTechnicalIssues,
-    AmbassadorProgramQuestions,
-    EventSupport,
-    Other,
-}
-
-impl TicketCategory {
-    pub fn label(&self) -> &'static str {
-        match self {
-            TicketCategory::SchoolOnboarding => "School onboarding",
-            TicketCategory::PromotionalMaterials => "Promotional materials",
-            TicketCategory::CbgpuTechnicalIssues => "CBGPU technical issues",
-            TicketCategory::AmbassadorProgramQuestions => "Ambassador program questions",
-            TicketCategory::EventSupport => "Event support",
-            TicketCategory::Other => "Other",
-        }
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub enum TicketStatus {
-    Open,
-    InProgress,
-    Closed,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Ticket {
-    pub id: EntityId,
-    pub discord_id: u64,
-    pub category: TicketCategory,
-    pub subject: String,
-    pub description: String,
-    pub status: TicketStatus,
-    pub created_at: chrono::DateTime<Utc>,
-    pub closed_at: Option<chrono::DateTime<Utc>>,
-    pub closed_by: Option<u64>,
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AuditLog {
     pub id: EntityId,
@@ -417,57 +202,6 @@ impl AuditLog {
             created_at: Utc::now(),
         }
     }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub enum AnnouncementStatus {
-    Active,
-    Archived,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Announcement {
-    pub id: EntityId,
-    pub title: String,
-    pub content: String,
-    pub status: AnnouncementStatus,
-    pub created_by: u64,
-    pub created_at: chrono::DateTime<Utc>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub enum PollStatus {
-    Active,
-    Closed,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Poll {
-    pub id: EntityId,
-    pub question: String,
-    pub options: Vec<String>,
-    pub votes: Vec<Vec<u64>>,
-    pub status: PollStatus,
-    pub created_by: u64,
-    pub created_at: chrono::DateTime<Utc>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub enum RewardType {
-    Role,
-    Badge,
-    Swag,
-    Recognition,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Reward {
-    pub id: EntityId,
-    pub title: String,
-    pub description: String,
-    pub points_cost: u32,
-    pub reward_type: RewardType,
-    pub active: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -512,7 +246,6 @@ pub struct AIConfig {
     pub request_timeout_secs: u64,
     pub cooldown_secs: u64,
     pub max_concurrent_requests: usize,
-    pub per_user_request_limit: usize,
 }
 
 impl Default for AIConfig {
@@ -528,7 +261,6 @@ impl Default for AIConfig {
             request_timeout_secs: 30,
             cooldown_secs: 5,
             max_concurrent_requests: 5,
-            per_user_request_limit: 50,
         }
     }
 }
@@ -555,4 +287,13 @@ pub struct AIUsageRecord {
     pub input_tokens: u32,
     pub output_tokens: u32,
     pub last_request: Option<chrono::DateTime<Utc>>,
+}
+
+/// A member an admin has confirmed as having registered their school on CBGPU.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RegistrationRecord {
+    pub discord_id: u64,
+    pub school: Option<String>,
+    pub marked_by: u64,
+    pub marked_at: chrono::DateTime<Utc>,
 }

@@ -6,17 +6,19 @@ use serenity::CreateEmbed;
 use uuid::Uuid;
 
 fn parse_date(s: &str) -> Result<chrono::DateTime<Utc>, Error> {
-    let naive = chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d")?
+    let naive = chrono::NaiveDate::parse_from_str(s.trim(), "%Y-%m-%d")
+        .map_err(|_| format!("Invalid date \"{s}\". Use YYYY-MM-DD, e.g. 2026-12-31."))?
         .and_hms_opt(0, 0, 0)
         .ok_or("Invalid date")?;
     Ok(naive.and_utc())
 }
 
 fn parse_uuid(s: &str) -> Result<EntityId, Error> {
-    Ok(Uuid::parse_str(s)?)
+    Uuid::parse_str(s.trim()).map_err(|_| "Invalid ID. Copy it from /cbgpu_missions.".into())
 }
 
-async fn admin_check(ctx: Context<'_>) -> Result<bool, Error> {
+#[allow(deprecated)]
+pub(crate) async fn admin_check(ctx: Context<'_>) -> Result<bool, Error> {
     let cache = ctx.serenity_context().cache.clone();
     let member = ctx.author_member().await;
     Ok(member.map_or(false, |m| {
@@ -24,7 +26,7 @@ async fn admin_check(ctx: Context<'_>) -> Result<bool, Error> {
     }))
 }
 
-#[poise::command(slash_command)]
+#[poise::command(slash_command, rename = "cbgpu_mission_create")]
 pub async fn mission_create(
     ctx: Context<'_>,
     #[description = "Mission title"] title: String,
@@ -49,6 +51,15 @@ pub async fn mission_create(
 
     let start = parse_date(&start_date)?;
     let end = parse_date(&end_date)?;
+    if end < start {
+        ctx.send(
+            poise::CreateReply::default()
+                .ephemeral(true)
+                .content("End date must not be before the start date."),
+        )
+        .await?;
+        return Ok(());
+    }
 
     let mut storage = ctx.data().storage.lock().await;
 
@@ -81,7 +92,7 @@ pub async fn mission_create(
     Ok(())
 }
 
-#[poise::command(slash_command)]
+#[poise::command(slash_command, rename = "cbgpu_mission_edit")]
 pub async fn mission_edit(
     ctx: Context<'_>,
     #[description = "Mission ID"] mission_id: String,
@@ -106,6 +117,8 @@ pub async fn mission_edit(
     }
 
     let id = parse_uuid(&mission_id)?;
+    let new_start = start_date.as_deref().map(parse_date).transpose()?;
+    let new_end = end_date.as_deref().map(parse_date).transpose()?;
 
     let mut storage = ctx.data().storage.lock().await;
 
@@ -123,6 +136,20 @@ pub async fn mission_edit(
         }
     };
 
+    {
+        let m = &storage.storage().missions[idx];
+        if new_end.unwrap_or(m.end_date) < new_start.unwrap_or(m.start_date) {
+            drop(storage);
+            ctx.send(
+                poise::CreateReply::default()
+                    .ephemeral(true)
+                    .content("End date must not be before the start date."),
+            )
+            .await?;
+            return Ok(());
+        }
+    }
+
     let mission = &mut storage.storage_mut().missions[idx];
 
     if let Some(t) = title {
@@ -134,11 +161,11 @@ pub async fn mission_edit(
     if let Some(i) = instructions {
         mission.instructions = i;
     }
-    if let Some(s) = start_date {
-        mission.start_date = parse_date(&s)?;
+    if let Some(s) = new_start {
+        mission.start_date = s;
     }
-    if let Some(e) = end_date {
-        mission.end_date = parse_date(&e)?;
+    if let Some(e) = new_end {
+        mission.end_date = e;
     }
     if let Some(p) = points {
         mission.points = p;
@@ -165,7 +192,7 @@ pub async fn mission_edit(
     Ok(())
 }
 
-#[poise::command(slash_command)]
+#[poise::command(slash_command, rename = "cbgpu_mission_close")]
 pub async fn mission_close(
     ctx: Context<'_>,
     #[description = "Mission ID"] mission_id: String,
@@ -219,7 +246,7 @@ pub async fn mission_close(
     Ok(())
 }
 
-#[poise::command(slash_command)]
+#[poise::command(slash_command, rename = "cbgpu_mission_delete")]
 pub async fn mission_delete(
     ctx: Context<'_>,
     #[description = "Mission ID"] mission_id: String,
@@ -255,6 +282,8 @@ pub async fn mission_delete(
     };
 
     storage.storage_mut().missions.remove(idx);
+    storage.storage_mut().mission_participations.retain(|p| p.mission_id != id);
+    storage.storage_mut().submissions.retain(|s| s.mission_id != id);
     storage.audit_log(
         discord_id,
         "mission_delete".to_string(),
@@ -273,7 +302,7 @@ pub async fn mission_delete(
     Ok(())
 }
 
-#[poise::command(slash_command)]
+#[poise::command(slash_command, rename = "cbgpu_missions")]
 pub async fn missions(ctx: Context<'_>) -> Result<(), Error> {
     let storage = ctx.data().storage.lock().await;
     let mission_list: Vec<Mission> = storage.storage().missions.clone();
@@ -304,12 +333,12 @@ pub async fn missions(ctx: Context<'_>) -> Result<(), Error> {
 
     let embed = CreateEmbed::new()
         .title("Missions")
-        .description(description);
+        .description(crate::util::truncate(&description, crate::util::EMBED_DESC_MAX));
     ctx.send(poise::CreateReply::default().embed(embed)).await?;
     Ok(())
 }
 
-#[poise::command(slash_command)]
+#[poise::command(slash_command, rename = "cbgpu_mission")]
 pub async fn mission(
     ctx: Context<'_>,
     #[description = "Mission ID"] mission_id: String,
@@ -334,13 +363,13 @@ pub async fn mission(
 
             let embed = CreateEmbed::new()
                 .title(format!("Mission — {}", m.title))
-                .field("Description", m.description, false)
-                .field("Instructions", m.instructions, false)
+                .field("Description", crate::util::truncate(&m.description, crate::util::EMBED_FIELD_MAX), false)
+                .field("Instructions", crate::util::truncate(&m.instructions, crate::util::EMBED_FIELD_MAX), false)
                 .field("Points", m.points.to_string(), true)
                 .field("Status", status_label, true)
                 .field("Start", m.start_date.format("%Y-%m-%d").to_string(), true)
                 .field("End", m.end_date.format("%Y-%m-%d").to_string(), true)
-                .field("Requirements", m.submission_requirements, false)
+                .field("Requirements", crate::util::truncate(&m.submission_requirements, crate::util::EMBED_FIELD_MAX), false)
                 .field("ID", m.id.to_string(), false);
 
             ctx.send(poise::CreateReply::default().embed(embed)).await?;
@@ -358,7 +387,7 @@ pub async fn mission(
     Ok(())
 }
 
-#[poise::command(slash_command)]
+#[poise::command(slash_command, rename = "cbgpu_mission_participate")]
 pub async fn mission_participate(
     ctx: Context<'_>,
     #[description = "Mission ID"] mission_id: String,
@@ -394,15 +423,39 @@ pub async fn mission_participate(
         return Ok(());
     }
 
-    if storage.find_ambassador_by_discord(discord_id).is_none() {
+    if Utc::now() < mission.start_date || Utc::now() >= mission.end_date + chrono::Duration::days(1) {
         drop(storage);
         ctx.send(
             poise::CreateReply::default()
                 .ephemeral(true)
-                .content("You are not registered as an ambassador."),
+                .content("This mission is outside its start/end dates."),
         )
         .await?;
         return Ok(());
+    }
+
+    match storage.find_ambassador_by_discord(discord_id) {
+        None => {
+            drop(storage);
+            ctx.send(
+                poise::CreateReply::default()
+                    .ephemeral(true)
+                    .content("You are not registered as an ambassador."),
+            )
+            .await?;
+            return Ok(());
+        }
+        Some(i) if storage.storage().ambassadors[i].status != AmbassadorStatus::Approved => {
+            drop(storage);
+            ctx.send(
+                poise::CreateReply::default()
+                    .ephemeral(true)
+                    .content("Your ambassador application has not been approved yet."),
+            )
+            .await?;
+            return Ok(());
+        }
+        Some(_) => {}
     }
 
     if storage
@@ -445,7 +498,7 @@ pub async fn mission_participate(
     Ok(())
 }
 
-#[poise::command(slash_command)]
+#[poise::command(slash_command, rename = "cbgpu_mission_submit")]
 pub async fn mission_submit(
     ctx: Context<'_>,
     #[description = "Mission ID"] mission_id: String,
@@ -477,6 +530,17 @@ pub async fn mission_submit(
             poise::CreateReply::default()
                 .ephemeral(true)
                 .content("This mission is not active."),
+        )
+        .await?;
+        return Ok(());
+    }
+
+    if Utc::now() < mission.start_date || Utc::now() >= mission.end_date + chrono::Duration::days(1) {
+        drop(storage);
+        ctx.send(
+            poise::CreateReply::default()
+                .ephemeral(true)
+                .content("This mission is outside its start/end dates."),
         )
         .await?;
         return Ok(());
@@ -533,7 +597,7 @@ pub async fn mission_submit(
     Ok(())
 }
 
-#[poise::command(slash_command)]
+#[poise::command(slash_command, rename = "cbgpu_submission_approve")]
 pub async fn submission_approve(
     ctx: Context<'_>,
     #[description = "Submission ID"] submission_id: String,
@@ -586,6 +650,11 @@ pub async fn submission_approve(
     storage.storage_mut().submissions[idx].review_reason = None;
     storage.storage_mut().submissions[idx].points_awarded = Some(points_awarded);
 
+    if let Some(ai) = storage.find_ambassador_by_discord(submission.discord_id) {
+        let a = &mut storage.storage_mut().ambassadors[ai];
+        a.points = a.points.saturating_add(points_awarded);
+    }
+
     let activity = ActivityRecord::new(
         submission.discord_id,
         format!("Approved submission for mission {}", submission.mission_id),
@@ -617,7 +686,7 @@ pub async fn submission_approve(
     Ok(())
 }
 
-#[poise::command(slash_command)]
+#[poise::command(slash_command, rename = "cbgpu_submission_reject")]
 pub async fn submission_reject(
     ctx: Context<'_>,
     #[description = "Submission ID"] submission_id: String,
@@ -688,10 +757,11 @@ pub async fn submission_reject(
     Ok(())
 }
 
-#[poise::command(slash_command)]
+#[poise::command(slash_command, rename = "cbgpu_school_leaderboard")]
 pub async fn school_leaderboard(ctx: Context<'_>) -> Result<(), Error> {
     let storage = ctx.data().storage.lock().await;
 
+    // Start from registered schools, then add any school an ambassador belongs to.
     let mut school_points: Vec<(String, u32)> = storage
         .storage()
         .schools
@@ -699,24 +769,30 @@ pub async fn school_leaderboard(ctx: Context<'_>) -> Result<(), Error> {
         .map(|s| (s.name.clone(), 0u32))
         .collect();
 
-    for a in storage.storage().ambassadors.iter() {
-        if let Some(ref school) = a.school {
-            if let Some((_, pts)) = school_points.iter_mut().find(|(name, _)| name == school) {
-                *pts += a.points;
-            }
+    for a in storage
+        .storage()
+        .ambassadors
+        .iter()
+        .filter(|a| a.status == AmbassadorStatus::Approved)
+    {
+        let Some(school) = a.school.as_deref() else { continue };
+        match school_points
+            .iter_mut()
+            .find(|(name, _)| name.eq_ignore_ascii_case(school))
+        {
+            Some((_, pts)) => *pts += a.points,
+            None => school_points.push((school.to_string(), a.points)),
         }
     }
-
-    school_points.sort_by(|a, b| b.1.cmp(&a.1));
-    school_points.truncate(10);
     drop(storage);
 
+    school_points.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+    school_points.truncate(10);
+
     if school_points.is_empty() {
-        ctx.send(
-            poise::CreateReply::default()
-                .ephemeral(true)
-                .content("No schools found."),
-        )
+        ctx.send(poise::CreateReply::default().ephemeral(true).content(
+            "No schools yet. A school appears here once an ambassador registers with /cbgpu_register (or an admin runs /cbgpu_school_participation).",
+        ))
         .await?;
         return Ok(());
     }
@@ -728,7 +804,7 @@ pub async fn school_leaderboard(ctx: Context<'_>) -> Result<(), Error> {
 
     let embed = CreateEmbed::new()
         .title("School Leaderboard")
-        .description(description);
+        .description(crate::util::truncate(&description, crate::util::EMBED_DESC_MAX));
     ctx.send(poise::CreateReply::default().embed(embed)).await?;
     Ok(())
 }

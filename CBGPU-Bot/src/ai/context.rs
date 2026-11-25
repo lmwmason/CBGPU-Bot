@@ -2,18 +2,6 @@ use crate::models::{AIConversation, AIMessage};
 use crate::storage::Store;
 use chrono::Utc;
 
-pub fn get_or_create(storage: &mut Store, discord_id: u64) -> AIConversation {
-    if let Some(idx) = storage.find_ai_conversation(discord_id) {
-        storage.storage().ai_conversations[idx].clone()
-    } else {
-        AIConversation {
-            discord_id,
-            messages: Vec::new(),
-            updated_at: Utc::now(),
-        }
-    }
-}
-
 pub fn add_message(
     storage: &mut Store,
     discord_id: u64,

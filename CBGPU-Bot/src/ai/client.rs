@@ -33,7 +33,9 @@ impl AIClient {
             "temperature": 0.7,
         });
 
-        let client = reqwest::Client::new();
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(120))
+            .build()?;
         let response = client
             .post(&url)
             .header("Authorization", format!("Bearer {}", api_key))
@@ -49,10 +51,14 @@ impl AIClient {
         }
 
         let json: serde_json::Value = response.json().await?;
-        let content = json["choices"][0]["message"]["content"]
-            .as_str()
-            .ok_or("No content in AI response")?
-            .to_string();
+        let choice = &json["choices"][0];
+        let content = match choice["message"]["content"].as_str() {
+            Some(c) if !c.trim().is_empty() => c.to_string(),
+            _ if choice["finish_reason"] == "length" => {
+                return Err("The model ran out of tokens before answering (reasoning model). Try a shorter question or raise max_output_tokens.".into());
+            }
+            _ => return Err("No content in AI response".into()),
+        };
 
         Ok(content)
     }

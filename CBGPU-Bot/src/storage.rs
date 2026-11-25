@@ -3,29 +3,26 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
 
-const STORAGE_PATH: &str = "data/orbitbot.json";
+/// Schools marked "CBGPU 운영 학교" (status APPROVED) on https://cbgpu.com/explore/schools.
+/// Checked against https://cbgpu.com/api/public/schools on 2026-11-25.
+const CBGPU_OPERATING_SCHOOLS: &[&str] = &["충북과학고등학교"];
+
+const STORAGE_PATH: &str = "data/cbgpu-bot.json";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Storage {
     pub ambassadors: Vec<Ambassador>,
     pub schools: Vec<School>,
-    pub applications: Vec<Application>,
     pub missions: Vec<Mission>,
     pub mission_participations: Vec<MissionParticipation>,
     pub submissions: Vec<Submission>,
     pub activities: Vec<ActivityRecord>,
-    pub collaborations: Vec<Collaboration>,
-    pub collab_requests: Vec<CollabRequest>,
-    pub connections: Vec<Connection>,
-    pub events: Vec<Event>,
-    pub tickets: Vec<Ticket>,
     pub audit_logs: Vec<AuditLog>,
-    pub announcements: Vec<Announcement>,
-    pub polls: Vec<Poll>,
-    pub rewards: Vec<Reward>,
     pub ai_config: Option<AIConfig>,
     pub ai_conversations: Vec<AIConversation>,
     pub ai_usage: Vec<AIUsageRecord>,
+    #[serde(default)]
+    pub registrations: Vec<RegistrationRecord>,
 }
 
 impl Default for Storage {
@@ -33,23 +30,15 @@ impl Default for Storage {
         Self {
             ambassadors: Vec::new(),
             schools: Vec::new(),
-            applications: Vec::new(),
             missions: Vec::new(),
             mission_participations: Vec::new(),
             submissions: Vec::new(),
             activities: Vec::new(),
-            collaborations: Vec::new(),
-            collab_requests: Vec::new(),
-            connections: Vec::new(),
-            events: Vec::new(),
-            tickets: Vec::new(),
             audit_logs: Vec::new(),
-            announcements: Vec::new(),
-            polls: Vec::new(),
-            rewards: Vec::new(),
             ai_config: None,
             ai_conversations: Vec::new(),
             ai_usage: Vec::new(),
+            registrations: Vec::new(),
         }
     }
 }
@@ -68,7 +57,52 @@ impl Store {
         } else {
             Storage::default()
         };
-        Ok(Self { path, storage })
+        let mut store = Self { path, storage };
+        store.seed_cbgpu_schools();
+        Ok(store)
+    }
+
+    /// Makes sure the known CBGPU operating schools exist and are marked as participating.
+    fn seed_cbgpu_schools(&mut self) {
+        for name in CBGPU_OPERATING_SCHOOLS {
+            match self.find_school_by_name(name) {
+                Some(i) => self.storage.schools[i].cbgu_participating = true,
+                None => {
+                    let mut school = School::new((*name).to_string());
+                    school.cbgu_participating = true;
+                    self.storage.schools.push(school);
+                }
+            }
+        }
+    }
+
+    /// Creates a default AI config from env vars if none is stored yet.
+    /// Needs AI_BASE_URL and AI_MODEL; the key is read from AI_API_KEY at request time.
+    pub fn ensure_ai_config_from_env(&mut self) -> bool {
+        if self.storage.ai_config.is_some() {
+            return false;
+        }
+        let (Ok(base_url), Ok(model)) = (
+            std::env::var("AI_BASE_URL"),
+            std::env::var("AI_MODEL"),
+        ) else {
+            return false;
+        };
+        let provider = AIProviderConfig {
+            name: "default".to_string(),
+            base_url,
+            model: model.clone(),
+            api_key_env: "AI_API_KEY".to_string(),
+        };
+        self.storage.ai_config = Some(AIConfig {
+            providers: vec![provider],
+            default_provider: Some("default".to_string()),
+            default_model: Some(model),
+            enabled: true,
+            max_output_tokens: 4096,
+            ..AIConfig::default()
+        });
+        true
     }
 
     pub fn save(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
@@ -103,13 +137,6 @@ impl Store {
             .position(|a| a.discord_id == discord_id)
     }
 
-    pub fn find_application_by_discord(&self, discord_id: u64) -> Option<usize> {
-        self.storage
-            .applications
-            .iter()
-            .position(|a| a.discord_id == discord_id)
-    }
-
     pub fn find_mission(&self, id: &EntityId) -> Option<usize> {
         self.storage.missions.iter().position(|m| &m.id == id)
     }
@@ -123,26 +150,6 @@ impl Store {
             .mission_participations
             .iter()
             .position(|p| p.mission_id == *mission_id && p.discord_id == discord_id)
-    }
-
-    pub fn find_mission_participations_by_mission(&self, mission_id: &EntityId) -> Vec<usize> {
-        self.storage
-            .mission_participations
-            .iter()
-            .enumerate()
-            .filter(|(_, p)| p.mission_id == *mission_id)
-            .map(|(i, _)| i)
-            .collect()
-    }
-
-    pub fn find_mission_participations_by_user(&self, discord_id: u64) -> Vec<usize> {
-        self.storage
-            .mission_participations
-            .iter()
-            .enumerate()
-            .filter(|(_, p)| p.discord_id == discord_id)
-            .map(|(i, _)| i)
-            .collect()
     }
 
     pub fn find_submission(&self, id: &EntityId) -> Option<usize> {
@@ -160,39 +167,11 @@ impl Store {
             .position(|s| s.mission_id == *mission_id && s.discord_id == discord_id)
     }
 
-    pub fn find_collab(&self, id: &EntityId) -> Option<usize> {
-        self.storage.collaborations.iter().position(|c| &c.id == id)
-    }
-
-    pub fn find_collab_request(&self, id: &EntityId) -> Option<usize> {
-        self.storage
-            .collab_requests
-            .iter()
-            .position(|c| &c.id == id)
-    }
-
-    pub fn find_event(&self, id: &EntityId) -> Option<usize> {
-        self.storage.events.iter().position(|e| &e.id == id)
-    }
-
-    pub fn find_ticket(&self, id: &EntityId) -> Option<usize> {
-        self.storage.tickets.iter().position(|t| &t.id == id)
-    }
-
     pub fn find_school_by_name(&self, name: &str) -> Option<usize> {
         self.storage
             .schools
             .iter()
             .position(|s| s.name.eq_ignore_ascii_case(name))
-    }
-
-    pub fn ambassador_points(&self, discord_id: u64) -> u32 {
-        self.storage
-            .ambassadors
-            .iter()
-            .find(|a| a.discord_id == discord_id)
-            .map(|a| a.points)
-            .unwrap_or(0)
     }
 
     pub fn find_ai_conversation(&self, discord_id: u64) -> Option<usize> {

@@ -1,3 +1,4 @@
+#[allow(dead_code)] // id/category/source are reference metadata for the knowledge base
 pub struct KbEntry {
     pub id: &'static str,
     pub title: &'static str,
@@ -13,7 +14,7 @@ pub const KB_ENTRIES: &[KbEntry] = &[
         title: "CBGPU 소개",
         content: "CBGPU는 학교와 프로젝트를 이어가는 공간입니다. 학생의 일상부터 연구와 개발까지, 공개 프로젝트를 둘러보고 내 계정으로 학교생활과 작업을 이어갈 수 있습니다.",
         category: "overview",
-        keywords: &["cbgu", "cbgpu", "소개", "개요", "학교", "프로젝트", "연결"],
+        keywords: &["cbgpu", "소개", "개요", "학교", "프로젝트", "연결"],
         source: "https://cbgpu.com",
     },
     KbEntry {
@@ -189,17 +190,6 @@ pub fn search_kb(query: &str, limit: usize) -> Vec<&'static KbEntry> {
         .collect()
 }
 
-pub fn get_kb_entry(id: &str) -> Option<&'static KbEntry> {
-    KB_ENTRIES.iter().find(|e| e.id == id)
-}
-
-pub fn list_kb_categories() -> Vec<&'static str> {
-    let mut cats: Vec<&'static str> = KB_ENTRIES.iter().map(|e| e.category).collect();
-    cats.sort();
-    cats.dedup();
-    cats
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -222,25 +212,6 @@ mod tests {
     fn test_search_kb_no_match() {
         let results = search_kb("zzzunknownquery", 5);
         assert!(results.is_empty());
-    }
-
-    #[test]
-    fn test_get_kb_entry() {
-        let entry = get_kb_entry("cbgpu-overview");
-        assert!(entry.is_some());
-        assert_eq!(entry.unwrap().title, "CBGPU 소개");
-    }
-
-    #[test]
-    fn test_get_kb_entry_not_found() {
-        assert!(get_kb_entry("nonexistent").is_none());
-    }
-
-    #[test]
-    fn test_list_kb_categories() {
-        let cats = list_kb_categories();
-        assert!(!cats.is_empty());
-        assert!(cats.contains(&"overview"));
     }
 
     #[test]

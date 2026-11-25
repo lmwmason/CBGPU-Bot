@@ -33,12 +33,6 @@ pub fn record_usage(
     }
 }
 
-pub fn get_usage(storage: &Store, discord_id: u64) -> Option<&AIUsageRecord> {
-    storage
-        .find_ai_usage(discord_id)
-        .map(|idx| &storage.storage().ai_usage[idx])
-}
-
 pub fn check_cooldown(storage: &Store, discord_id: u64, cooldown_secs: u64) -> Option<u64> {
     let record = storage.find_ai_usage(discord_id)?;
     let last = storage.storage().ai_usage[record].last_request?;
@@ -48,11 +42,4 @@ pub fn check_cooldown(storage: &Store, discord_id: u64, cooldown_secs: u64) -> O
     } else {
         None
     }
-}
-
-pub fn check_request_limit(storage: &Store, discord_id: u64, limit: usize) -> bool {
-    let Some(idx) = storage.find_ai_usage(discord_id) else {
-        return false;
-    };
-    storage.storage().ai_usage[idx].request_count as usize >= limit
 }

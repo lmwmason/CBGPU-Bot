@@ -2,7 +2,10 @@ mod ai;
 mod commands;
 mod kb;
 mod models;
+mod reminders;
+mod school_sync;
 mod state;
+mod util;
 mod storage;
 
 use poise::serenity_prelude as serenity;
@@ -16,14 +19,15 @@ use tokio::sync::Mutex;
 async fn main() {
     dotenvy::dotenv().ok();
     let token = env::var("DISCORD_TOKEN").expect("DISCORD_TOKEN is not set.");
-    let intents = serenity::GatewayIntents::non_privileged();
+    let intents = serenity::GatewayIntents::non_privileged() | serenity::GatewayIntents::GUILD_MEMBERS;
 
     let framework = poise::Framework::builder()
         .options(poise::FrameworkOptions {
             commands: vec![
                 commands::general::info(),
-                commands::general::add(),
                 commands::ambassador::register(),
+                commands::ambassador::ambassador_approve(),
+                commands::ambassador::ambassador_reject(),
                 commands::ambassador::profile(),
                 commands::ambassador::school(),
                 commands::ambassador::members(),
@@ -51,6 +55,11 @@ async fn main() {
                 commands::ai::ai_usage(),
                 commands::ai::ai_config(),
                 commands::cbgpu::cbgpu(),
+                commands::registration::mark_registered(),
+                commands::registration::unmark_registered(),
+                commands::registration::registration_status(),
+                commands::registration::remind_unregistered(),
+                commands::cbgpu::school_participation(),
                 commands::cbgpu::features(),
                 commands::cbgpu::schools(),
                 commands::cbgpu::links(),
@@ -64,8 +73,25 @@ async fn main() {
                     .await?;
                 println!("Bot is ready.");
 
-                let storage = Arc::new(Mutex::new(Store::load()?));
-                Ok(Data { storage })
+                let mut store = Store::load()?;
+                if store.ensure_ai_config_from_env() {
+                    println!("AI config created from environment.");
+                }
+                store.save()?;
+                if std::env::var("AI_API_KEY").is_err() {
+                    eprintln!("Warning: AI_API_KEY is not set; AI commands will fail.");
+                }
+                let storage = Arc::new(Mutex::new(store));
+                tokio::spawn(school_sync::sync_loop(storage.clone()));
+                tokio::spawn(reminders::reminder_loop(
+                    ctx.http.clone(),
+                    guild_id,
+                    storage.clone(),
+                ));
+                Ok(Data {
+                    storage,
+                    ai_in_flight: Default::default(),
+                })
             })
         })
         .build();

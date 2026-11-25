@@ -3,7 +3,7 @@ use crate::state::{Context, Error};
 use poise::serenity_prelude as serenity;
 use serenity::{CreateEmbed, CreateEmbedFooter};
 
-#[poise::command(slash_command)]
+#[poise::command(slash_command, rename = "cbgpu_about")]
 pub async fn cbgpu(ctx: Context<'_>) -> Result<(), Error> {
     let embed = CreateEmbed::new()
         .title("CBGPU — 학교와 프로젝트를 이어가는 공간")
@@ -47,7 +47,7 @@ pub async fn cbgpu(ctx: Context<'_>) -> Result<(), Error> {
     Ok(())
 }
 
-#[poise::command(slash_command)]
+#[poise::command(slash_command, rename = "cbgpu_features")]
 pub async fn features(ctx: Context<'_>) -> Result<(), Error> {
     let embed = CreateEmbed::new()
         .title("CBGPU 주요 기능")
@@ -89,7 +89,7 @@ pub async fn features(ctx: Context<'_>) -> Result<(), Error> {
     Ok(())
 }
 
-#[poise::command(slash_command)]
+#[poise::command(slash_command, rename = "cbgpu_participating_schools")]
 pub async fn schools(ctx: Context<'_>) -> Result<(), Error> {
     let storage = ctx.data().storage.lock().await;
     let schools: Vec<School> = storage
@@ -124,7 +124,7 @@ pub async fn schools(ctx: Context<'_>) -> Result<(), Error> {
 
         let embed = CreateEmbed::new()
             .title("참여 학교 — CBGPU")
-            .description(description);
+            .description(crate::util::truncate(&description, crate::util::EMBED_DESC_MAX));
         ctx.send(poise::CreateReply::default().embed(embed)).await?;
         return Ok(());
     }
@@ -136,12 +136,12 @@ pub async fn schools(ctx: Context<'_>) -> Result<(), Error> {
 
     let embed = CreateEmbed::new()
         .title("참여 학교 — CBGPU")
-        .description(description);
+        .description(crate::util::truncate(&description, crate::util::EMBED_DESC_MAX));
     ctx.send(poise::CreateReply::default().embed(embed)).await?;
     Ok(())
 }
 
-#[poise::command(slash_command)]
+#[poise::command(slash_command, rename = "cbgpu_links")]
 pub async fn links(ctx: Context<'_>) -> Result<(), Error> {
     let embed = CreateEmbed::new()
         .title("CBGPU 주요 링크")
@@ -190,5 +190,48 @@ pub async fn links(ctx: Context<'_>) -> Result<(), Error> {
         .footer(CreateEmbedFooter::new("더 많은 정보: https://cbgpu.com"));
 
     ctx.send(poise::CreateReply::default().embed(embed)).await?;
+    Ok(())
+}
+
+#[poise::command(slash_command, rename = "cbgpu_school_participation")]
+pub async fn school_participation(
+    ctx: Context<'_>,
+    #[description = "School name"] school: String,
+    #[description = "Is the school participating in CBGPU?"] participating: bool,
+) -> Result<(), Error> {
+    if !crate::commands::mission::admin_check(ctx).await? {
+        ctx.send(
+            poise::CreateReply::default()
+                .ephemeral(true)
+                .content("Only administrators can change school participation."),
+        )
+        .await?;
+        return Ok(());
+    }
+    let actor = ctx.author().id.get();
+    let mut storage = ctx.data().storage.lock().await;
+    let idx = match storage.find_school_by_name(&school) {
+        Some(i) => i,
+        None => {
+            storage.storage_mut().schools.push(School::new(school.clone()));
+            storage.storage().schools.len() - 1
+        }
+    };
+    storage.storage_mut().schools[idx].cbgu_participating = participating;
+    let name = storage.storage().schools[idx].name.clone();
+    storage.audit_log(
+        actor,
+        "school_participation".to_string(),
+        name.clone(),
+        format!("participating = {participating}"),
+    );
+    storage.save()?;
+    drop(storage);
+    ctx.send(
+        poise::CreateReply::default()
+            .ephemeral(true)
+            .content(format!("{name}: participating = {participating}")),
+    )
+    .await?;
     Ok(())
 }

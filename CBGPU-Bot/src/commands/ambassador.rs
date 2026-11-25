@@ -2,8 +2,9 @@ use crate::models::{ActivityRecord, Ambassador, AmbassadorStatus, School};
 use crate::state::{Context, Error};
 use poise::serenity_prelude as serenity;
 use serenity::CreateEmbed;
+use chrono::Utc;
 
-#[poise::command(slash_command)]
+#[poise::command(slash_command, rename = "cbgpu_register")]
 pub async fn register(
     ctx: Context<'_>,
     #[description = "Your full name"] name: String,
@@ -52,7 +53,7 @@ pub async fn register(
     Ok(())
 }
 
-#[poise::command(slash_command)]
+#[poise::command(slash_command, rename = "cbgpu_profile")]
 pub async fn profile(
     ctx: Context<'_>,
     #[description = "User to view"] user: Option<serenity::UserId>,
@@ -100,7 +101,7 @@ pub async fn profile(
     Ok(())
 }
 
-#[poise::command(slash_command)]
+#[poise::command(slash_command, rename = "cbgpu_school")]
 pub async fn school(
     ctx: Context<'_>,
     #[description = "School name to set"] school: Option<String>,
@@ -182,7 +183,7 @@ pub async fn school(
     Ok(())
 }
 
-#[poise::command(slash_command)]
+#[poise::command(slash_command, rename = "cbgpu_members")]
 pub async fn members(
     ctx: Context<'_>,
     #[description = "Filter by school name"] school: Option<String>,
@@ -229,12 +230,12 @@ pub async fn members(
         None => "Ambassadors".to_string(),
     };
 
-    let embed = CreateEmbed::new().title(title).description(description);
+    let embed = CreateEmbed::new().title(title).description(crate::util::truncate(&description, crate::util::EMBED_DESC_MAX));
     ctx.send(poise::CreateReply::default().embed(embed)).await?;
     Ok(())
 }
 
-#[poise::command(slash_command)]
+#[poise::command(slash_command, rename = "cbgpu_schools")]
 pub async fn schools(ctx: Context<'_>) -> Result<(), Error> {
     let storage = ctx.data().storage.lock().await;
     let schools: Vec<School> = storage.storage().schools.clone();
@@ -258,12 +259,12 @@ pub async fn schools(ctx: Context<'_>) -> Result<(), Error> {
         ));
     }
 
-    let embed = CreateEmbed::new().title("Schools").description(description);
+    let embed = CreateEmbed::new().title("Schools").description(crate::util::truncate(&description, crate::util::EMBED_DESC_MAX));
     ctx.send(poise::CreateReply::default().embed(embed)).await?;
     Ok(())
 }
 
-#[poise::command(slash_command)]
+#[poise::command(slash_command, rename = "cbgpu_team")]
 pub async fn team(ctx: Context<'_>) -> Result<(), Error> {
     let storage = ctx.data().storage.lock().await;
     let ambassadors = storage.storage().ambassadors.clone();
@@ -296,7 +297,7 @@ pub async fn team(ctx: Context<'_>) -> Result<(), Error> {
     Ok(())
 }
 
-#[poise::command(slash_command)]
+#[poise::command(slash_command, rename = "cbgpu_activity")]
 pub async fn activity(
     ctx: Context<'_>,
     #[description = "User to view"] user: Option<serenity::UserId>,
@@ -336,12 +337,12 @@ pub async fn activity(
 
     let embed = CreateEmbed::new()
         .title(format!("Activity — <@{}>", discord_id))
-        .description(description);
+        .description(crate::util::truncate(&description, crate::util::EMBED_DESC_MAX));
     ctx.send(poise::CreateReply::default().embed(embed)).await?;
     Ok(())
 }
 
-#[poise::command(slash_command)]
+#[poise::command(slash_command, rename = "cbgpu_leaderboard")]
 pub async fn leaderboard(ctx: Context<'_>) -> Result<(), Error> {
     let storage = ctx.data().storage.lock().await;
     let mut ambassadors: Vec<_> = storage.storage().ambassadors.clone();
@@ -367,7 +368,102 @@ pub async fn leaderboard(ctx: Context<'_>) -> Result<(), Error> {
 
     let embed = CreateEmbed::new()
         .title("Ambassador Leaderboard")
-        .description(description);
+        .description(crate::util::truncate(&description, crate::util::EMBED_DESC_MAX));
     ctx.send(poise::CreateReply::default().embed(embed)).await?;
     Ok(())
+}
+
+async fn review_ambassador(
+    ctx: Context<'_>,
+    user: serenity::UserId,
+    approve: bool,
+) -> Result<(), Error> {
+    if !crate::commands::mission::admin_check(ctx).await? {
+        ctx.send(
+            poise::CreateReply::default()
+                .ephemeral(true)
+                .content("Only administrators can review ambassadors."),
+        )
+        .await?;
+        return Ok(());
+    }
+
+    let reviewer = ctx.author().id.get();
+    let mut storage = ctx.data().storage.lock().await;
+    let Some(idx) = storage.find_ambassador_by_discord(user.get()) else {
+        drop(storage);
+        ctx.send(
+            poise::CreateReply::default()
+                .ephemeral(true)
+                .content("No ambassador application found for this user."),
+        )
+        .await?;
+        return Ok(());
+    };
+
+    let school = storage.storage().ambassadors[idx].school.clone();
+    {
+        let a = &mut storage.storage_mut().ambassadors[idx];
+        if approve {
+            a.status = AmbassadorStatus::Approved;
+            a.approved_at = Some(Utc::now());
+            a.approved_by = Some(reviewer);
+        } else {
+            a.status = AmbassadorStatus::Rejected;
+            a.approved_at = None;
+            a.approved_by = None;
+        }
+    }
+
+    // Keep the school's ambassador_count in sync with approved ambassadors.
+    if let Some(name) = school {
+        if let Some(si) = storage.find_school_by_name(&name) {
+            let count = storage
+                .storage()
+                .ambassadors
+                .iter()
+                .filter(|a| {
+                    a.status == AmbassadorStatus::Approved
+                        && a.school.as_deref().is_some_and(|s| s.eq_ignore_ascii_case(&name))
+                })
+                .count() as u32;
+            storage.storage_mut().schools[si].ambassador_count = count;
+        }
+    }
+
+    let action = if approve { "ambassador_approve" } else { "ambassador_reject" };
+    storage.audit_log(
+        reviewer,
+        action.to_string(),
+        "ambassador".to_string(),
+        format!("{} {}", action, user.get()),
+    );
+    storage.save()?;
+    drop(storage);
+
+    ctx.send(
+        poise::CreateReply::default().ephemeral(true).content(format!(
+            "Ambassador <@{}> {}.",
+            user.get(),
+            if approve { "approved" } else { "rejected" }
+        )),
+    )
+    .await?;
+    Ok(())
+}
+
+#[poise::command(slash_command, rename = "cbgpu_ambassador_approve")]
+pub async fn ambassador_approve(
+    ctx: Context<'_>,
+    #[description = "User to approve"] user: serenity::UserId,
+) -> Result<(), Error> {
+    review_ambassador(ctx, user, true).await
+}
+
+#[poise::command(slash_command, rename = "cbgpu_ambassador_reject")]
+pub async fn ambassador_reject(
+    ctx: Context<'_>,
+    #[description = "User to reject"] user: serenity::UserId,
+) -> Result<(), Error> {
+    review_ambassador(ctx, user, false).await
 }
