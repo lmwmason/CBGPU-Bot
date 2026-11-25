@@ -68,9 +68,12 @@ async fn main() {
         })
         .setup(|ctx, _ready, framework| {
             Box::pin(async move {
-                let guild_id = serenity::GuildId::new(1575070127102230622);
+                // Real CBGPU server: nightly registration reminders run here.
+                let guild_id = serenity::GuildId::new(1572221094952173738);
+                // Test server: slash commands only.
+                let test_guild_id = serenity::GuildId::new(1575070127102230622);
                 // Slash commands are registered in every guild listed here.
-                let command_guilds = [guild_id, serenity::GuildId::new(1572221094952173738)];
+                let command_guilds = [guild_id, test_guild_id];
                 for id in command_guilds {
                     if let Err(error) =
                         poise::builtins::register_in_guild(ctx, &framework.options().commands, id)
