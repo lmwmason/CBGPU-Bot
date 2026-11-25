@@ -1,6 +1,7 @@
 use crate::ai::client::AIClient;
 use crate::ai::context::{add_message, clear as clear_conversation, get_or_create};
 use crate::ai::usage::{check_cooldown, check_request_limit, record_usage};
+use crate::kb::search_kb;
 use crate::models::*;
 use crate::state::{Context, Error};
 use poise::serenity_prelude as serenity;
@@ -89,6 +90,23 @@ pub async fn ask(
 
     let conversation = get_or_create(&mut storage, discord_id);
     let mut messages: Vec<AIMessage> = conversation.messages.clone();
+
+    let kb_results = search_kb(&question, 3);
+    if !kb_results.is_empty() {
+        let kb_context: String = kb_results
+            .iter()
+            .map(|e| format!("[{}] {}", e.title, e.content))
+            .collect::<Vec<_>>()
+            .join("\n\n");
+        messages.insert(0, AIMessage {
+            role: "system".to_string(),
+            content: format!(
+                "다음은 CBGPU 지식 기반에서 참고할 정보입니다. 답변할 때 이 내용을 참고하세요:\n\n{}",
+                kb_context
+            ),
+        });
+    }
+
     messages.push(AIMessage {
         role: "user".to_string(),
         content: question.clone(),
