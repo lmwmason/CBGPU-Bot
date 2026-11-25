@@ -11,6 +11,7 @@ pub struct Storage {
     pub schools: Vec<School>,
     pub applications: Vec<Application>,
     pub missions: Vec<Mission>,
+    pub mission_participations: Vec<MissionParticipation>,
     pub submissions: Vec<Submission>,
     pub activities: Vec<ActivityRecord>,
     pub collaborations: Vec<Collaboration>,
@@ -31,6 +32,7 @@ impl Default for Storage {
             schools: Vec::new(),
             applications: Vec::new(),
             missions: Vec::new(),
+            mission_participations: Vec::new(),
             submissions: Vec::new(),
             activities: Vec::new(),
             collaborations: Vec::new(),
@@ -104,6 +106,33 @@ impl Store {
 
     pub fn find_mission(&self, id: &EntityId) -> Option<usize> {
         self.storage.missions.iter().position(|m| &m.id == id)
+    }
+
+    pub fn find_mission_participation(&self, mission_id: &EntityId, discord_id: u64) -> Option<usize> {
+        self.storage
+            .mission_participations
+            .iter()
+            .position(|p| p.mission_id == *mission_id && p.discord_id == discord_id)
+    }
+
+    pub fn find_mission_participations_by_mission(&self, mission_id: &EntityId) -> Vec<usize> {
+        self.storage
+            .mission_participations
+            .iter()
+            .enumerate()
+            .filter(|(_, p)| p.mission_id == *mission_id)
+            .map(|(i, _)| i)
+            .collect()
+    }
+
+    pub fn find_mission_participations_by_user(&self, discord_id: u64) -> Vec<usize> {
+        self.storage
+            .mission_participations
+            .iter()
+            .enumerate()
+            .filter(|(_, p)| p.discord_id == discord_id)
+            .map(|(i, _)| i)
+            .collect()
     }
 
     pub fn find_submission(&self, id: &EntityId) -> Option<usize> {

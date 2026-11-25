@@ -136,6 +136,25 @@ pub enum SubmissionStatus {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MissionParticipation {
+    pub id: EntityId,
+    pub mission_id: EntityId,
+    pub discord_id: u64,
+    pub joined_at: chrono::DateTime<Utc>,
+}
+
+impl MissionParticipation {
+    pub fn new(mission_id: EntityId, discord_id: u64) -> Self {
+        Self {
+            id: Uuid::new_v4(),
+            mission_id,
+            discord_id,
+            joined_at: Utc::now(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Submission {
     pub id: EntityId,
     pub mission_id: EntityId,
