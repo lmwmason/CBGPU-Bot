@@ -29,18 +29,25 @@ async fn main() {
                 commands::ambassador::team(),
                 commands::ambassador::activity(),
                 commands::ambassador::leaderboard(),
+                commands::mission::mission_create(),
+                commands::mission::mission_edit(),
+                commands::mission::mission_close(),
+                commands::mission::mission_delete(),
+                commands::mission::missions(),
+                commands::mission::mission(),
+                commands::mission::mission_participate(),
+                commands::mission::mission_submit(),
+                commands::mission::submission_approve(),
+                commands::mission::submission_reject(),
+                commands::mission::school_leaderboard(),
             ],
             ..Default::default()
         })
         .setup(|ctx, _ready, framework| {
             Box::pin(async move {
                 let guild_id = serenity::GuildId::new(1575070127102230622);
-                poise::builtins::register_in_guild(
-                    ctx,
-                    &framework.options().commands,
-                    guild_id,
-                )
-                .await?;
+                poise::builtins::register_in_guild(ctx, &framework.options().commands, guild_id)
+                    .await?;
                 println!("Bot is ready.");
 
                 let storage = Arc::new(Mutex::new(Store::load()?));
