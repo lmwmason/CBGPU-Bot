@@ -21,6 +21,14 @@ async fn main() {
             commands: vec![
                 commands::general::info(),
                 commands::general::add(),
+                commands::ambassador::register(),
+                commands::ambassador::profile(),
+                commands::ambassador::school(),
+                commands::ambassador::members(),
+                commands::ambassador::schools(),
+                commands::ambassador::team(),
+                commands::ambassador::activity(),
+                commands::ambassador::leaderboard(),
             ],
             ..Default::default()
         })

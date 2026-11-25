@@ -68,7 +68,9 @@ impl Store {
             fs::create_dir_all(parent)?;
         }
         let data = serde_json::to_string_pretty(&self.storage)?;
-        fs::write(&self.path, data)?;
+        let temp_path = format!("{}.tmp", self.path);
+        fs::write(&temp_path, data)?;
+        fs::rename(&temp_path, &self.path)?;
         Ok(())
     }
 

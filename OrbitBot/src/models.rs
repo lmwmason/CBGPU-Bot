@@ -419,6 +419,8 @@ pub struct School {
     pub id: EntityId,
     pub name: String,
     pub ambassador_count: u32,
+    #[serde(default)]
+    pub cbgu_participating: bool,
     pub created_at: chrono::DateTime<Utc>,
 }
 
@@ -428,6 +430,7 @@ impl School {
             id: Uuid::new_v4(),
             name,
             ambassador_count: 0,
+            cbgu_participating: false,
             created_at: Utc::now(),
         }
     }
