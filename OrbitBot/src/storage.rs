@@ -23,6 +23,9 @@ pub struct Storage {
     pub announcements: Vec<Announcement>,
     pub polls: Vec<Poll>,
     pub rewards: Vec<Reward>,
+    pub ai_config: Option<AIConfig>,
+    pub ai_conversations: Vec<AIConversation>,
+    pub ai_usage: Vec<AIUsageRecord>,
 }
 
 impl Default for Storage {
@@ -44,6 +47,9 @@ impl Default for Storage {
             announcements: Vec::new(),
             polls: Vec::new(),
             rewards: Vec::new(),
+            ai_config: None,
+            ai_conversations: Vec::new(),
+            ai_usage: Vec::new(),
         }
     }
 }
@@ -108,7 +114,11 @@ impl Store {
         self.storage.missions.iter().position(|m| &m.id == id)
     }
 
-    pub fn find_mission_participation(&self, mission_id: &EntityId, discord_id: u64) -> Option<usize> {
+    pub fn find_mission_participation(
+        &self,
+        mission_id: &EntityId,
+        discord_id: u64,
+    ) -> Option<usize> {
         self.storage
             .mission_participations
             .iter()
@@ -136,10 +146,7 @@ impl Store {
     }
 
     pub fn find_submission(&self, id: &EntityId) -> Option<usize> {
-        self.storage
-            .submissions
-            .iter()
-            .position(|s| &s.id == id)
+        self.storage.submissions.iter().position(|s| &s.id == id)
     }
 
     pub fn find_submission_by_mission_and_user(
@@ -154,10 +161,7 @@ impl Store {
     }
 
     pub fn find_collab(&self, id: &EntityId) -> Option<usize> {
-        self.storage
-            .collaborations
-            .iter()
-            .position(|c| &c.id == id)
+        self.storage.collaborations.iter().position(|c| &c.id == id)
     }
 
     pub fn find_collab_request(&self, id: &EntityId) -> Option<usize> {
@@ -189,5 +193,19 @@ impl Store {
             .find(|a| a.discord_id == discord_id)
             .map(|a| a.points)
             .unwrap_or(0)
+    }
+
+    pub fn find_ai_conversation(&self, discord_id: u64) -> Option<usize> {
+        self.storage
+            .ai_conversations
+            .iter()
+            .position(|c| c.discord_id == discord_id)
+    }
+
+    pub fn find_ai_usage(&self, discord_id: u64) -> Option<usize> {
+        self.storage
+            .ai_usage
+            .iter()
+            .position(|u| u.discord_id == discord_id)
     }
 }

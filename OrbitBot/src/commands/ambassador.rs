@@ -1,4 +1,4 @@
-use crate::models::{Ambassador, AmbassadorStatus, ActivityRecord, School};
+use crate::models::{ActivityRecord, Ambassador, AmbassadorStatus, School};
 use crate::state::{Context, Error};
 use poise::serenity_prelude as serenity;
 use serenity::CreateEmbed;
@@ -28,7 +28,10 @@ pub async fn register(
     }
 
     if storage.find_school_by_name(&school).is_none() {
-        storage.storage_mut().schools.push(School::new(school.clone()));
+        storage
+            .storage_mut()
+            .schools
+            .push(School::new(school.clone()));
     }
 
     let ambassador = Ambassador::new(discord_id, name, school, grade, introduction, reason);
@@ -42,11 +45,9 @@ pub async fn register(
     storage.save()?;
     drop(storage);
 
-    ctx.send(
-        poise::CreateReply::default()
-            .ephemeral(true)
-            .content("You have been registered as a pending ambassador. An admin will review your application."),
-    )
+    ctx.send(poise::CreateReply::default().ephemeral(true).content(
+        "You have been registered as a pending ambassador. An admin will review your application.",
+    ))
     .await?;
     Ok(())
 }
@@ -124,7 +125,10 @@ pub async fn school(
             };
 
             if storage.find_school_by_name(&name).is_none() {
-                storage.storage_mut().schools.push(School::new(name.clone()));
+                storage
+                    .storage_mut()
+                    .schools
+                    .push(School::new(name.clone()));
             }
 
             storage.storage_mut().ambassadors[idx].school = Some(name.clone());
@@ -248,12 +252,13 @@ pub async fn schools(ctx: Context<'_>) -> Result<(), Error> {
 
     let mut description = String::new();
     for s in schools.iter() {
-        description.push_str(&format!("• {} ({} ambassadors)\n", s.name, s.ambassador_count));
+        description.push_str(&format!(
+            "• {} ({} ambassadors)\n",
+            s.name, s.ambassador_count
+        ));
     }
 
-    let embed = CreateEmbed::new()
-        .title("Schools")
-        .description(description);
+    let embed = CreateEmbed::new().title("Schools").description(description);
     ctx.send(poise::CreateReply::default().embed(embed)).await?;
     Ok(())
 }
@@ -323,7 +328,9 @@ pub async fn activity(
     for a in activities.iter() {
         description.push_str(&format!(
             "• {} — {} pts ({})\n",
-            a.action, a.points, a.created_at.format("%Y-%m-%d")
+            a.action,
+            a.points,
+            a.created_at.format("%Y-%m-%d")
         ));
     }
 
@@ -355,12 +362,7 @@ pub async fn leaderboard(ctx: Context<'_>) -> Result<(), Error> {
 
     let mut description = String::new();
     for (i, a) in ambassadors.iter().enumerate() {
-        description.push_str(&format!(
-            "{}. {} — {} pts\n",
-            i + 1,
-            a.name,
-            a.points
-        ));
+        description.push_str(&format!("{}. {} — {} pts\n", i + 1, a.name, a.points));
     }
 
     let embed = CreateEmbed::new()

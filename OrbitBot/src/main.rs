@@ -1,3 +1,4 @@
+mod ai;
 mod commands;
 mod models;
 mod state;
@@ -40,6 +41,14 @@ async fn main() {
                 commands::mission::submission_approve(),
                 commands::mission::submission_reject(),
                 commands::mission::school_leaderboard(),
+                commands::ai::ask(),
+                commands::ai::explain(),
+                commands::ai::summarize(),
+                commands::ai::translate(),
+                commands::ai::model(),
+                commands::ai::clear(),
+                commands::ai::ai_usage(),
+                commands::ai::ai_config(),
             ],
             ..Default::default()
         })

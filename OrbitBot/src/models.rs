@@ -28,7 +28,14 @@ pub struct Ambassador {
 }
 
 impl Ambassador {
-    pub fn new(discord_id: u64, name: String, school: String, grade: Option<String>, introduction: String, reason: String) -> Self {
+    pub fn new(
+        discord_id: u64,
+        name: String,
+        school: String,
+        grade: Option<String>,
+        introduction: String,
+        reason: String,
+    ) -> Self {
         Self {
             id: Uuid::new_v4(),
             discord_id,
@@ -70,7 +77,14 @@ pub struct Application {
 }
 
 impl Application {
-    pub fn new(discord_id: u64, name: String, school: String, grade: Option<String>, introduction: String, reason: String) -> Self {
+    pub fn new(
+        discord_id: u64,
+        name: String,
+        school: String,
+        grade: Option<String>,
+        introduction: String,
+        reason: String,
+    ) -> Self {
         Self {
             id: Uuid::new_v4(),
             discord_id,
@@ -111,7 +125,16 @@ pub struct Mission {
 }
 
 impl Mission {
-    pub fn new(title: String, description: String, instructions: String, start_date: chrono::DateTime<Utc>, end_date: chrono::DateTime<Utc>, points: u32, submission_requirements: String, created_by: u64) -> Self {
+    pub fn new(
+        title: String,
+        description: String,
+        instructions: String,
+        start_date: chrono::DateTime<Utc>,
+        end_date: chrono::DateTime<Utc>,
+        points: u32,
+        submission_requirements: String,
+        created_by: u64,
+    ) -> Self {
         Self {
             id: Uuid::new_v4(),
             title,
@@ -229,7 +252,15 @@ pub struct Collaboration {
 }
 
 impl Collaboration {
-    pub fn new(title: String, description: String, required_skills: String, looking_for: String, participating_schools: Vec<String>, contact: String, created_by: u64) -> Self {
+    pub fn new(
+        title: String,
+        description: String,
+        required_skills: String,
+        looking_for: String,
+        participating_schools: Vec<String>,
+        contact: String,
+        created_by: u64,
+    ) -> Self {
         Self {
             id: Uuid::new_v4(),
             title,
@@ -301,7 +332,13 @@ pub struct Event {
 }
 
 impl Event {
-    pub fn new(title: String, description: String, event_date: chrono::DateTime<Utc>, location: String, created_by: u64) -> Self {
+    pub fn new(
+        title: String,
+        description: String,
+        event_date: chrono::DateTime<Utc>,
+        location: String,
+        created_by: u64,
+    ) -> Self {
         Self {
             id: Uuid::new_v4(),
             title,
@@ -453,4 +490,69 @@ impl School {
             created_at: Utc::now(),
         }
     }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AIProviderConfig {
+    pub name: String,
+    pub base_url: String,
+    pub model: String,
+    pub api_key_env: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AIConfig {
+    pub providers: Vec<AIProviderConfig>,
+    pub default_provider: Option<String>,
+    pub default_model: Option<String>,
+    pub enabled: bool,
+    pub context_message_limit: usize,
+    pub max_input_tokens: usize,
+    pub max_output_tokens: usize,
+    pub request_timeout_secs: u64,
+    pub cooldown_secs: u64,
+    pub max_concurrent_requests: usize,
+    pub per_user_request_limit: usize,
+}
+
+impl Default for AIConfig {
+    fn default() -> Self {
+        Self {
+            providers: Vec::new(),
+            default_provider: None,
+            default_model: None,
+            enabled: false,
+            context_message_limit: 20,
+            max_input_tokens: 4000,
+            max_output_tokens: 2000,
+            request_timeout_secs: 30,
+            cooldown_secs: 5,
+            max_concurrent_requests: 5,
+            per_user_request_limit: 50,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AIMessage {
+    pub role: String,
+    pub content: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AIConversation {
+    pub discord_id: u64,
+    pub messages: Vec<AIMessage>,
+    pub updated_at: chrono::DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AIUsageRecord {
+    pub discord_id: u64,
+    pub provider: String,
+    pub model: String,
+    pub request_count: u32,
+    pub input_tokens: u32,
+    pub output_tokens: u32,
+    pub last_request: Option<chrono::DateTime<Utc>>,
 }
