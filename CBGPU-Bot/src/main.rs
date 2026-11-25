@@ -69,8 +69,16 @@ async fn main() {
         .setup(|ctx, _ready, framework| {
             Box::pin(async move {
                 let guild_id = serenity::GuildId::new(1575070127102230622);
-                poise::builtins::register_in_guild(ctx, &framework.options().commands, guild_id)
-                    .await?;
+                // Slash commands are registered in every guild listed here.
+                let command_guilds = [guild_id, serenity::GuildId::new(1572221094952173738)];
+                for id in command_guilds {
+                    if let Err(error) =
+                        poise::builtins::register_in_guild(ctx, &framework.options().commands, id)
+                            .await
+                    {
+                        eprintln!("Failed to register commands in guild {id}: {error}");
+                    }
+                }
                 println!("Bot is ready.");
 
                 let mut store = Store::load()?;
